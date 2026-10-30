@@ -1,18 +1,24 @@
-# Bootstrap build configuration for the enchilada image: the full enchilada_defconfig with the three
-# candidate-gated archive builders turned off, so a first `unixnu build kernel` links and prelinks a
-# kernel.macho without needing a prelinked candidate first. That candidate is then fed back as
-# ENCHILADA_STORAGE_CANDIDATE / ENCHILADA_DISPLAY_CANDIDATE to a second, full build (enchilada_defconfig).
+# Bootstrap build configuration for the enchilada image: the full enchilada_defconfig with the two genuinely
+# candidate-gated archive builders turned off, so a first `unixnu build kernel` links and prelinks a kernel.macho
+# without needing a prelinked candidate first. That candidate is then fed back as ENCHILADA_STORAGE_CANDIDATE /
+# ENCHILADA_DISPLAY_CANDIDATE to a second, full build (enchilada_defconfig).
 #
-# Why this exists: scripts/build-enchilada-storage.py, scripts/build-sheng-platform-power.py and
-# scripts/build-native-legacy-display.py audit the original kernelcache's IOStorageFamily / ApplePMGR /
-# IOMobileFramebufferLegacy against a *prelinked* candidate (kernel.macho + kernel.json). A prelink needs
-# a fully linked kernel, and a fully linked kernel needs those three archives -- a bootstrap circle that
-# upstream UniXNU resolves by hand (export <BOARD>_STORAGE_CANDIDATE=...). This defconfig breaks the circle
-# for CI: the first pass links without the three archives, prelinks a candidate, and the second pass feeds
-# it back. The candidate's native IOPMGR/IOService vtable and the original kext bytes are configuration-
+# Why this exists: scripts/build-sheng-platform-power.py and scripts/build-native-legacy-display.py audit the
+# original kernelcache's ApplePMGR / IOMobileFramebufferLegacy against a *prelinked* candidate (kernel.macho +
+# kernel.json). A prelink needs a fully linked kernel, and a fully linked kernel needs those two archives -- a
+# bootstrap circle that upstream UniXNU resolves by hand (export <BOARD>_STORAGE_CANDIDATE=...). This defconfig
+# breaks the circle for CI: the first pass links without those two archives, prelinks a candidate, and the second
+# pass feeds it back. The candidate's native IOPMGR/IOService vtable and the original kext bytes are configuration-
 # independent (they come from the shared kernelcache), so a bootstrap candidate qualifies the full build.
 #
-# This is derived from configs/enchilada_defconfig; keep the two in sync except for the switches below.
+# The other switches stay ON and identical to enchilada_defconfig, because they are NOT candidate-gated:
+#   - NATIVE_VIRTIO_BLOCK: scripts/build-enchilada-storage.py has a kernelcache fallback and produces the bindings
+#     (libVirtioMmioBlock.a) in the bootstrap pass too.
+#   - VERIFIED_ROOT_PROBE / OWNER_ROOT_AUDIT / OWNER_ROOT_TRUST: scripts/build-enchilada-verified-root.py reads the
+#     pinned IPSW OS/Cryptex images, not a prelink. They must stay y so XNU_OWNER_CACHE_MOUNT=y still finds
+#     XNU_OWNER_ROOT_TRUST=y (build-xnu-4k-baseline.sh asserts that dependency).
+#
+# This is derived from configs/enchilada_defconfig; keep the two in sync except for the two switches below.
 
 CONFIG_XNU_BUILD_ARCHIVES=y
 CONFIG_XNU_SOURCE_CORECRYPTO14=y
@@ -21,10 +27,10 @@ CONFIG_XNU_ARM_DT_PLATFORM=y
 CONFIG_XNU_ARMCPU=y
 CONFIG_XNU_NATIVE_AES=y
 CONFIG_XNU_NATIVE_UFS=y
-CONFIG_XNU_NATIVE_VIRTIO_BLOCK=n
-CONFIG_XNU_VERIFIED_ROOT_PROBE=n
-CONFIG_XNU_OWNER_ROOT_AUDIT=n
-CONFIG_XNU_OWNER_ROOT_TRUST=n
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK=y
+CONFIG_XNU_VERIFIED_ROOT_PROBE=y
+CONFIG_XNU_OWNER_ROOT_AUDIT=y
+CONFIG_XNU_OWNER_ROOT_TRUST=y
 CONFIG_XNU_SHENG_PMGR=n
 CONFIG_XNU_TRUST_CACHE_RUNTIME=y
 CONFIG_XNU_SOURCE_MOCKFS=y
@@ -35,7 +41,8 @@ CONFIG_XNU_NATIVE_PAN=y
 
 CONFIG_XNU_CRYPTO_BOOTSTRAP="prelinked"
 CONFIG_XNU_EXTRA_LD_ARCHIVES="-Wl,-force_load,{tree}/build/enchilada-dwc3/libNativeDwc3.a -Wl,-force_load,{tree}/build/enchilada-touch/libEnchiladaTouch.a -Wl,-force_load,{tree}/build/enchilada-cpufreq/libEnchiladaCpuFreq.a"
-# The three candidate-gated archive variables are intentionally absent: this pass must link without them.
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK_ARCHIVE="{tree}/build/native-virtio-block-verified-bundle/libVirtioMmioBlock.a"
+CONFIG_XNU_VERIFIED_ROOT_ARCHIVE="{tree}/build/verified-root-os-xnu-bundle/libVerifiedRootProbe.a"
 CONFIG_XNU_NATIVE_RAM_BLOCK=y
 CONFIG_XNU_NATIVE_ADRENO=n
 CONFIG_XNU_NATIVE_MOBILE_DISPLAY=n
@@ -47,4 +54,4 @@ CONFIG_XNU_OWNER_UNION_SYSTEMOS=y
 CONFIG_XNU_OWNER_BOOT_MANIFEST=n
 CONFIG_XNU_OWNER_DATA_MOUNT=n
 CONFIG_XNU_OWNER_DATA_VOLUME_UUID="F24CB35D-F9D8-46C5-9164-F0655CCAFF9D"
-CONFIG_XNU_BOOT_PROGRESS=n
+CONFIG_XNU_BOOT_PROGRESS=y
