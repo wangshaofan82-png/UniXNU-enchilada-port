@@ -31,57 +31,60 @@ def run(*command):
 
 
 def main():
-    candidate = os.environ.get('ENCHILADA_STORAGE_CANDIDATE')
-    slide = 0
-    from_kernelcache = False
-    if not candidate:
-        # A prelink of an earlier pass over the same original kernelcache: the bound addresses are the original
-        # IOStorageFamily's at the board-independent slide, so any prelink of that kernelcache qualifies.
+    # The storage audit is static against the *original* IOStorageFamily module, which is present byte-for-byte in the
+    # pinned kernelcache, so audit the kernelcache itself (with the [kernel.prelink] slide). Auditing a prelinked
+    # candidate instead is fragile: emit_prelink rebinds the inherited-IOService dispatch pointers to the native
+    # kernel's symbol table, and any defconfig difference (e.g. the bootstrap pass) shifts those addresses so the
+    # audit's `named` count no longer matches and it reports "0 candidates". The kernelcache never has that problem.
+    #
+    # The candidate is still needed to *stage* the native-owner-ufs-rootauth3-candidate.macho that
+    # build-sheng-platform-power.py and build-native-legacy-display.py read; those audits only check a handful of
+    # IOKit core symbols (IOService::serviceMatching/safeMetaCast/newUserClient, ___cxa_pure_virtual) whose addresses
+    # are defconfig-independent, so the bootstrap candidate qualifies for them. Decouple the two roles below.
+    original = ROOT.parents[1] / 'ipsw/21H461/kernelcache.decompressed'
+    stage_candidate = os.environ.get('ENCHILADA_STORAGE_CANDIDATE')
+    if not stage_candidate:
         previous = ROOT.parent / 'kernel/kernel.macho'
         if previous.is_file():
-            candidate = str(previous)
-    if not candidate or not Path(candidate).is_file():
-        # Cold start: there is no earlier prelink to audit. The audit is static against the original IOStorageFamily
-        # module, which is present byte-for-byte in the pinned kernelcache, so audit the kernelcache itself with the
-        # [kernel.prelink] slide. This is exactly what makes a first build from scratch possible (see the docstring of
-        # audit-storage-interface-static.py). The kernelcache has no kernel.json prelink report beside it, so the
-        # staging of native-owner-ufs-rootauth3-candidate is skipped this pass.
-        original = ROOT.parents[1] / 'ipsw/21H461/kernelcache.decompressed'
-        if original.is_file():
-            candidate = str(original)
-            slide = -0x1000000
-            from_kernelcache = True
-    if not candidate or not Path(candidate).is_file():
-        raise SystemExit('ENCHILADA_STORAGE_CANDIDATE must name a prelinked enchilada kernel.macho with its kernel.json '
-                         'beside it, or the pinned kernelcache must be fetched ("unixnu ipsw fetch KernelCache")')
+            stage_candidate = str(previous)
+
+    # Audit input: always the kernelcache when it is fetched (cold start and full pass alike).
+    audit_candidate = original if original.is_file() else None
     audit = os.environ.get('ENCHILADA_STORAGE_AUDIT')
-    if not audit and not from_kernelcache and not Path(candidate).with_suffix('.json').is_file():
-        raise SystemExit(f'{candidate} has no prelink report beside it; supply ENCHILADA_STORAGE_AUDIT for it')
+    if audit and not audit_candidate:
+        # No kernelcache, but a pre-made audit was supplied for an earlier candidate; use that candidate.
+        audit_candidate = stage_candidate or ROOT.parent / 'kernel/kernel.macho'
+    if not audit and not audit_candidate:
+        raise SystemExit('the pinned kernelcache must be fetched ("unixnu ipsw fetch KernelCache") '
+                         'to audit the original storage interface')
+
+    # Stage the candidate that sheng/display read, independent of how the audit is fed.
     prelink = ROOT / 'build/native-prelink'
-    if not from_kernelcache:
+    if stage_candidate and Path(stage_candidate).is_file():
         prelink.mkdir(parents=True, exist_ok=True)
         for suffix in ('.macho', '.json'):
-            source = Path(candidate).with_suffix(suffix)
+            source = Path(stage_candidate).with_suffix(suffix)
             if source.is_file():
                 shutil.copyfile(source, prelink / f'native-owner-ufs-rootauth3-candidate{suffix}')
-    original = ROOT.parents[1] / 'ipsw/21H461/kernelcache.decompressed'
+
     if original.is_file():
         staged = ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed'
         staged.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(original, staged)
     if audit:
         recorded = json.loads(Path(audit).read_text())['candidate_sha256']
-        if recorded != hashlib.sha256(Path(candidate).read_bytes()).hexdigest():
-            raise SystemExit(f'{audit} was made for candidate {recorded}, not {candidate}')
+        if recorded != hashlib.sha256(Path(audit_candidate).read_bytes()).hexdigest():
+            raise SystemExit(f'{audit} was made for candidate {recorded}, not {audit_candidate}')
         (ROOT / 'build/storage-abi').mkdir(parents=True, exist_ok=True)
         shutil.copyfile(audit, ROOT / 'build/storage-abi/interface-audit.json')
         print(f'storage audit: {audit} (candidate {recorded[:16]})', flush=True)
     else:
-        command = [ROOT / 'scripts/audit-storage-interface-static.py', '--prelinked', candidate]
-        if slide:
-            # A negative slide (--slide -0x1000000) is misread by argparse as an option; pass it
-            # in the --slide=VALUE form so the leading minus survives as the argument value.
-            command += [f'--slide={hex(slide)}']
+        command = [ROOT / 'scripts/audit-storage-interface-static.py', '--prelinked', str(audit_candidate)]
+        if audit_candidate == original:
+            # The original kernelcache is audited at the board's fixed prelink slide. A negative slide
+            # (--slide -0x1000000) is misread by argparse as an option; pass it in the --slide=VALUE form
+            # so the leading minus survives as the argument value.
+            command += ['--slide=-0x1000000']
         run(*command)
     run(ROOT / 'scripts/build-arm-driver.py', 'NativeVirtioBlock', '--verified-root', '--verified-root-bundle')
     run(ROOT / 'scripts/build-native-virtio-bindings.py', '--component', 'NativeVirtioBlock',
