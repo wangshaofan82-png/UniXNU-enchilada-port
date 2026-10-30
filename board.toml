@@ -46,11 +46,15 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 # stock partition table; userdata is the last partition (its last_lba equals the GPT's last_usable),
 # so only its end differs with the storage SKU.
 #
-# The range is 50.41 GiB, which holds the 7.88 GiB of OS + SystemOS with room for the Data volume.
+# The 64 GB SKU range is 50.41 GiB (last_lba 0xe217fa); the 128 GB SKU range is 110.00 GiB
+# (last_lba 0x1d06ffa). The value below is for the 128 GB SKU now in hand (serial 4eeb4492,
+# 2026-10-30, re-measured with dump-device-facts.sh: sda = 121749504 4096-byte blocks = 116.1 GiB,
+# userdata = sda17, sysfs start=12810752 size=230688216 in 512-byte sectors -> first 1601344,
+# last 30437370 = 0x1d06ffa). first_lba is identical on every SKU; only last_lba moves with storage.
 # Re-read it on another phone with scripts/dump-device-facts.sh before flashing there.
 [userdata]
 first_lba = 0x186f40
-last_lba = 0xe217fa
+last_lba = 0x1d06ffa
 lba_bytes = 4096
 windows = [
   { name = "OS", component = "OS" },
@@ -230,7 +234,10 @@ skip_setup_tool = "scripts/seed-data-skip-setup.py"
 # Read it on another phone with `adb shell head -1 /proc/meminfo` (MemTotal; 6 GiB shows ~5.5 GiB,
 # 8 GiB shows ~7.6 GiB) and cross-check `getprop ro.boot.msz`, which the bootloader fills with the
 # SKU's RAM size in GiB.
-dram_size = "0x180000000"
+# RE-MEASURED ON THIS PHONE (serial 4eeb4492, 2026-10-30): MemTotal 7791792 kB = 7.43 GiB, so this is
+# the 8 GiB / 128 GB SKU. The DDR size below is 0x200000000 (8 GiB), not the 0x180000000 (6 GiB) that
+# the 64 GB SKU (serial 27f4f45d) measures. (ro.boot.msz is empty on this ROM; MemTotal is the authority.)
+dram_size = "0x200000000"
 # Patch a copy of the kernel with the sheng boot probes (scripts/patch-xnu-entry-probe.py --panic-screen --no-reset):
 # a blue band at kernel entry, a magenta band before the MMU is enabled, and panic() drawn on the screen.
 # 2026-10-28: the --no-reset build reached the magenta band (MMU enable) and then went silent with no panic

@@ -153,6 +153,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./unixnu fetch
 
+      # launchd and dyld are ad-hoc signed in this iPadOS release. DarwinBoot must receive
+      # the original Static + System trust modules or AMFI refuses the first exec before
+      # any userland code runs. Build and re-read the bundle here so a malformed or
+      # unexpected trust cache fails on the runner instead of on the phone.
+      - name: Package the original launchd trust caches
+        if: ${{ !inputs.skip_payload }}
+        run: |
+          ./unixnu ipsw fetch StaticTrustCache Cryptex1,SystemTrustCache
+          python3 device/scripts/make-enchilada-trust-bundle.py --unixnu "$GITHUB_WORKSPACE"
+          python3 device/scripts/make-enchilada-trust-bundle.py --unixnu "$GITHUB_WORKSPACE" --check
+
       # The device repository's patches/xnu/ replaces UniXNU's shared series in the assembled tree
       # instead of adding to it, so the board's patches live in patches/xnu-device/ and this
       # composes the directory the format 1 build globs. Without it the kernel is built with the
@@ -234,7 +245,7 @@ jobs:
         env:
           UNIXNU_UNIQUE_CHIP_ID: ${{ env.UNIXNU_UNIQUE_CHIP_ID }}
         run: |
-          args=""
+          args="--trust-cache out/enchilada-trust.bundle"
           if [ -n "${{ inputs.data_seed_run_id }}" ]; then
             args="$args --data-ramdisk /tmp/data-seed/data-linux.dbr"
             if [ "${{ inputs.skip_setup }}" = "true" ]; then
