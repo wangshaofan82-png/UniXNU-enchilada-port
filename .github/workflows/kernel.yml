@@ -183,11 +183,34 @@ jobs:
           python3 device/scripts/compose-xnu-patches.py --write --unixnu "$GITHUB_WORKSPACE"
           python3 device/scripts/compose-xnu-patches.py --unixnu "$GITHUB_WORKSPACE"
 
-      - name: Build kernel
+      # The candidate-gated archive builders (scripts/build-sheng-platform-power.py and
+      # scripts/build-native-legacy-display.py) audit the original kernelcache's ApplePMGR /
+      # IOMobileFramebufferLegacy against a *prelinked* candidate, and a prelink needs a fully
+      # linked kernel which needs those archives -- a bootstrap circle. Break it in two passes:
+      #   1. link with the bootstrap defconfig (those archives off) and ENCHILADA_BOOTSTRAP=1, so
+      #      the two scripts skip themselves and the kernel links; its prelink is the candidate.
+      #   2. select the real defconfig and rebuild with ENCHILADA_STORAGE_CANDIDATE /
+      #      ENCHILADA_DISPLAY_CANDIDATE pointing at the first pass's kernel.macho.
+      - name: Build kernel (bootstrap pass, produces the prelink candidate)
+        id: kernel-bootstrap
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ENCHILADA_BOOTSTRAP: "1"
+          UNIXNU_UEFI: ${{ github.workspace }}/../Mu-Silicium
+        run: |
+          ./unixnu defconfig enchilada_bootstrap_defconfig -D "$GITHUB_WORKSPACE/device"
+          ./unixnu build kernel
+
+      - name: Build kernel (full pass, uses the prelink candidate)
         id: kernel
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./unixnu build kernel
+          ENCHILADA_STORAGE_CANDIDATE: ${{ github.workspace }}/out/enchilada/kernel/kernel.macho
+          ENCHILADA_DISPLAY_CANDIDATE: ${{ github.workspace }}/out/enchilada/kernel/kernel.macho
+          UNIXNU_UEFI: ${{ github.workspace }}/../Mu-Silicium
+        run: |
+          ./unixnu defconfig "$DEFCONFIG" -D "$GITHUB_WORKSPACE/device"
+          ./unixnu build kernel
 
       - name: Build DarwinBoot
         id: darwinboot

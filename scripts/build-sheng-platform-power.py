@@ -24,6 +24,14 @@ def require(value, message):
         raise SystemExit(message)
 
 
+import os as _os
+if _os.environ.get('ENCHILADA_BOOTSTRAP') == '1':
+    # Bootstrap pass: link without the sheng PMGR instrument so a prelinked candidate can be produced, to be fed back
+    # to the full build as ENCHILADA_STORAGE_CANDIDATE. The bootstrap defconfig leaves CONFIG_XNU_SHENG_PMGR off, so
+    # nothing links against libShengPlatformPower.a.
+    print('ENCHILADA_BOOTSTRAP=1: skipping sheng platform-power instrument', flush=True)
+    raise SystemExit(0)
+
 print(run(['python3', ROOT / 'scripts/audit-amfi-pmgr-contract.py'], text=True), end='')
 header = '''// Generated exact storage/slot ABI; private fields stay opaque.
 #pragma once

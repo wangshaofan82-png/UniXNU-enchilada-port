@@ -82,6 +82,12 @@ else:
     objcopy = objcopy or str(Path(run(['brew', '--prefix', 'llvm'], text=True).strip()) / 'bin/llvm-objcopy')
 
 # The reference candidate, under the names audit-mobile-graphics-legacy.py and build-native-hid-input.py look for.
+if os.environ.get('ENCHILADA_BOOTSTRAP') == '1':
+    # Bootstrap pass: link without the CPU-rendered display archive so a prelinked candidate can be produced, to be fed
+    # back to the full build as ENCHILADA_DISPLAY_CANDIDATE. The bootstrap defconfig leaves CONFIG_XNU_NATIVE_LEGACY_DISPLAY
+    # off, so nothing links against libNativeLegacyDisplay.late.a.
+    print('ENCHILADA_BOOTSTRAP=1: skipping NativeLegacyDisplay archive', flush=True)
+    raise SystemExit(0)
 candidate = Path(os.environ.get('ENCHILADA_DISPLAY_CANDIDATE') or os.environ.get('ENCHILADA_STORAGE_CANDIDATE') or '')
 require(candidate.is_file() and candidate.with_suffix('.json').is_file(),
         'ENCHILADA_DISPLAY_CANDIDATE (or ENCHILADA_STORAGE_CANDIDATE) must name a prelinked enchilada kernel.macho with its kernel.json beside it')
