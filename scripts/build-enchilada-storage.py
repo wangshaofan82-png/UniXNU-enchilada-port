@@ -79,7 +79,9 @@ def main():
     else:
         command = [ROOT / 'scripts/audit-storage-interface-static.py', '--prelinked', candidate]
         if slide:
-            command += ['--slide', hex(slide)]
+            # A negative slide (--slide -0x1000000) is misread by argparse as an option; pass it
+            # in the --slide=VALUE form so the leading minus survives as the argument value.
+            command += [f'--slide={hex(slide)}']
         run(*command)
     run(ROOT / 'scripts/build-arm-driver.py', 'NativeVirtioBlock', '--verified-root', '--verified-root-bundle')
     run(ROOT / 'scripts/build-native-virtio-bindings.py', '--component', 'NativeVirtioBlock',
