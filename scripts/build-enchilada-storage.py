@@ -32,6 +32,8 @@ def run(*command):
 
 def main():
     candidate = os.environ.get('ENCHILADA_STORAGE_CANDIDATE')
+    slide = 0
+    from_kernelcache = False
     if not candidate:
         # A prelink of an earlier pass over the same original kernelcache: the bound addresses are the original
         # IOStorageFamily's at the board-independent slide, so any prelink of that kernelcache qualifies.
@@ -39,16 +41,29 @@ def main():
         if previous.is_file():
             candidate = str(previous)
     if not candidate or not Path(candidate).is_file():
-        raise SystemExit('ENCHILADA_STORAGE_CANDIDATE must name a prelinked enchilada kernel.macho with its kernel.json beside it')
+        # Cold start: there is no earlier prelink to audit. The audit is static against the original IOStorageFamily
+        # module, which is present byte-for-byte in the pinned kernelcache, so audit the kernelcache itself with the
+        # [kernel.prelink] slide. This is exactly what makes a first build from scratch possible (see the docstring of
+        # audit-storage-interface-static.py). The kernelcache has no kernel.json prelink report beside it, so the
+        # staging of native-owner-ufs-rootauth3-candidate is skipped this pass.
+        original = ROOT.parents[1] / 'ipsw/21H461/kernelcache.decompressed'
+        if original.is_file():
+            candidate = str(original)
+            slide = -0x1000000
+            from_kernelcache = True
+    if not candidate or not Path(candidate).is_file():
+        raise SystemExit('ENCHILADA_STORAGE_CANDIDATE must name a prelinked enchilada kernel.macho with its kernel.json '
+                         'beside it, or the pinned kernelcache must be fetched ("unixnu ipsw fetch KernelCache")')
     audit = os.environ.get('ENCHILADA_STORAGE_AUDIT')
-    if not audit and not Path(candidate).with_suffix('.json').is_file():
+    if not audit and not from_kernelcache and not Path(candidate).with_suffix('.json').is_file():
         raise SystemExit(f'{candidate} has no prelink report beside it; supply ENCHILADA_STORAGE_AUDIT for it')
     prelink = ROOT / 'build/native-prelink'
-    prelink.mkdir(parents=True, exist_ok=True)
-    for suffix in ('.macho', '.json'):
-        source = Path(candidate).with_suffix(suffix)
-        if source.is_file():
-            shutil.copyfile(source, prelink / f'native-owner-ufs-rootauth3-candidate{suffix}')
+    if not from_kernelcache:
+        prelink.mkdir(parents=True, exist_ok=True)
+        for suffix in ('.macho', '.json'):
+            source = Path(candidate).with_suffix(suffix)
+            if source.is_file():
+                shutil.copyfile(source, prelink / f'native-owner-ufs-rootauth3-candidate{suffix}')
     original = ROOT.parents[1] / 'ipsw/21H461/kernelcache.decompressed'
     if original.is_file():
         staged = ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed'
@@ -62,7 +77,10 @@ def main():
         shutil.copyfile(audit, ROOT / 'build/storage-abi/interface-audit.json')
         print(f'storage audit: {audit} (candidate {recorded[:16]})', flush=True)
     else:
-        run(ROOT / 'scripts/audit-storage-interface-static.py', '--prelinked', candidate)
+        command = [ROOT / 'scripts/audit-storage-interface-static.py', '--prelinked', candidate]
+        if slide:
+            command += ['--slide', hex(slide)]
+        run(*command)
     run(ROOT / 'scripts/build-arm-driver.py', 'NativeVirtioBlock', '--verified-root', '--verified-root-bundle')
     run(ROOT / 'scripts/build-native-virtio-bindings.py', '--component', 'NativeVirtioBlock',
         '--directory', 'build/native-virtio-block-verified-bundle')

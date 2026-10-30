@@ -153,6 +153,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./unixnu fetch
 
+      # The kernel's archive builders need IPSW components that are not in board.toml's default fetch set:
+      #   * scripts/build-enchilada-storage.py audits the original IOStorageFamily module. On a cold start
+      #     there is no earlier prelinked kernel to audit, so it falls back to auditing the pinned
+      #     kernelcache itself (with the [kernel.prelink] slide) -- fetch and decompress it first.
+      #   * scripts/build-enchilada-verified-root.py signs policies over the OS and SystemOS images,
+      #     so those two large members have to be extracted before the kernel build too.
+      - name: Fetch the IPSW components the kernel archives need
+        run: ./unixnu ipsw fetch KernelCache OS Cryptex1,SystemOS
+
       # launchd and dyld are ad-hoc signed in this iPadOS release. DarwinBoot must receive
       # the original Static + System trust modules or AMFI refuses the first exec before
       # any userland code runs. Build and re-read the bundle here so a malformed or
