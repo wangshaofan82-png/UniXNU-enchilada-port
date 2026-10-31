@@ -120,13 +120,15 @@ jobs:
       - name: Install host tools
         run: |
           # Two LLVM versions are needed and must stay separate:
-          #   * `llvm` (23.x) drives the XNU kernel build: its build scripts call `llvm-objcopy`
-          #     with Mach-O options (--remove-section=__DATA,__mod_init_func), which llvm@18 rejects.
+          #   * `llvm` (23.x) + `lld` drive the XNU kernel and DarwinBoot builds: the kernel scripts
+          #     call `llvm-objcopy` with Mach-O options (--remove-section=__DATA,__mod_init_func)
+          #     that llvm@18 rejects, and build-darwinboot.sh merges `brew --prefix lld` (lld-link)
+          #     into its toolchain bin dir.
           #   * `llvm@18` (18.1.8) drives the EDK II firmware-volume build. clang 23 changed
           #     section-merging (llvm PR #199625) so the AArch64 SEC entry's .text.Name sections no
           #     longer coalesce, and the firmware volume it produces sends the phone back to
           #     fastboot. The 2026-10-28 build that DID reach the UniXNU menu used an older clang.
-          brew install llvm llvm@18 mtools dtc
+          brew install llvm lld llvm@18 mtools dtc
           # Expose llvm@18's prefix via GITHUB_ENV so the firmware step can point CLANG_BIN at it
           # (firmware.py does env.setdefault('CLANG_BIN', ...), so a preset CLANG_BIN wins). Keep
           # llvm@18 OFF the global PATH so the kernel build keeps using llvm 23's llvm-objcopy.
