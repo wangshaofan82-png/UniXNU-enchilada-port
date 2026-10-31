@@ -26,12 +26,10 @@ on:
         default: ""
       mu_silicium_ref:
         description: >-
-          Mu-Silicium ref to build against. Pinned to 7a2ada19841a129f86fb791c0b9a710436c849a4
-          (2026-10-28) because later upstream commits bumped Mu_Basecore 3c9c7b2 -> 7d204c6,
-          whose AsmMacroLib.h .text$Name section change breaks the enchilada SEC entry and
-          sends the phone back to fastboot. Use the full 40-char SHA, not an abbreviation.
+          Mu-Silicium ref to build against (default main). Set to a full 40-char SHA to pin a
+          specific upstream commit.
         required: false
-        default: "7a2ada19841a129f86fb791c0b9a710436c849a4"
+        default: "main"
       unique_chip_id:
         description: >-
           Platform seed for the Apple device tree, 16 hex digits. Leave empty to use the
