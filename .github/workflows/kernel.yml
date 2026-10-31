@@ -25,9 +25,13 @@ on:
         required: false
         default: ""
       mu_silicium_ref:
-        description: Mu-Silicium ref (empty = its default branch)
+        description: >-
+          Mu-Silicium ref to build against. Pinned to 7a2ada1984 (2026-10-28) because
+          later upstream commits bumped Mu_Basecore 3c9c7b2 -> 7d204c6, whose
+          AsmMacroLib.h .text$Name section change breaks the enchilada SEC entry and
+          sends the phone back to fastboot. Override only if you know what you are doing.
         required: false
-        default: ""
+        default: "7a2ada1984"
       unique_chip_id:
         description: >-
           Platform seed for the Apple device tree, 16 hex digits. Leave empty to use the
@@ -130,7 +134,12 @@ jobs:
       - name: Check out Mu-Silicium and patch the OnePlus 6 platform package
         run: |
           git clone --recurse-submodules --shallow-submodules --depth 1 \
-            ${MU_REF:+--branch "$MU_REF"} https://github.com/Project-Silicium/Mu-Silicium ../Mu-Silicium
+            https://github.com/Project-Silicium/Mu-Silicium ../Mu-Silicium
+          if [ -n "$MU_REF" ]; then
+            git -C ../Mu-Silicium fetch --depth 1 origin "$MU_REF"
+            git -C ../Mu-Silicium checkout --detach FETCH_HEAD
+            git -C ../Mu-Silicium submodule update --init --recursive --depth 1
+          fi
           python3 device/scripts/make-enchilada-uefi.py ../Mu-Silicium
         env:
           MU_REF: ${{ inputs.mu_silicium_ref }}
