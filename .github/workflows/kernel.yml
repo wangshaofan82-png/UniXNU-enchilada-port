@@ -332,6 +332,10 @@ jobs:
           ./unixnu bootimg --uefi ../Mu-Silicium \
             --dtb ../Mu-Silicium/Resources/DTBs/enchilada.dtb \
             --ramdisk none -o out/enchilada/boot/no-ramdisk/boot.img
+          # upload-artifact@v4 rejects '../' paths, so stage the firmware volume inside the
+          # workspace before handing it to the upload step below.
+          cp ../Mu-Silicium/Build/enchiladaPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd \
+            out/enchilada/boot/SILICIUM_UEFI.fd
 
       - name: Build the userdata image
         id: userdata
@@ -372,7 +376,7 @@ jobs:
             out/enchilada/boot/with-ramdisk/boot.json
             out/enchilada/boot/no-ramdisk/boot.img
             out/enchilada/boot/no-ramdisk/boot.json
-            ../Mu-Silicium/Build/enchiladaPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd
+            out/enchilada/boot/SILICIUM_UEFI.fd
           if-no-files-found: warn
           retention-days: 7
 
