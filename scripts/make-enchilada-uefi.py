@@ -87,17 +87,18 @@ EDITS = [
     # locate "Display Reserved" (framebuffer serial log) or "APSS_WDT_TMR1" (watchdog) and the phone
     # falls back to fastboot. Disable constant merging for the firmware volume. Anchored on the
     # FdtLib line the first edit leaves behind, so it survives re-patching in any order.
-    # -fno-merge-all-constants must also reach the LTO link (clang acts as the linker), so it goes on
-    # both CC_FLAGS and DLINK_FLAGS.
+    # NOTE: the flag belongs on CC_FLAGS only. CLANGPDB compiles with `clang -Oz -flto`, so the
+    # tail-merge happens when clang emits LTO IR (compile stage). CLANGPDB links with lld-link
+    # (MSVC-style `/OPT:ICF` flags), which rejects GCC-style `-fno-merge-all-constants`; putting it
+    # on DLINK_FLAGS made every DXE module fail to link (run 41199249725).
     ('enchilada.dsc', '  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf\n',
      '  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf\n\n'
      '[BuildOptions.common]\n'
      '  # clang 18 tail-merges string-literal tails under -flto/-fdata-sections, which overwrites the\n'
      '  # padding inside an in-line CHAR8 Name[32] and the Address/Length fields after it. Keep each\n'
      '  # constant intact.\n'
-     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-merge-all-constants\n'
-     '  CLANGPDB:*_*_*_DLINK_FLAGS = -fno-merge-all-constants\n',
-     '  CLANGPDB:*_*_*_DLINK_FLAGS = -fno-merge-all-constants\n'),
+     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-merge-all-constants\n',
+     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-merge-all-constants\n'),
 ]
 
 # SEC of SiliciumPkg, shared by every device of the checkout; the uefi-sheng fixes, unchanged for
