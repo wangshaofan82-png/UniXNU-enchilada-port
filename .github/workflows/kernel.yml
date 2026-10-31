@@ -119,7 +119,17 @@ jobs:
 
       - name: Install host tools
         run: |
-          brew install llvm lld mtools dtc
+          # clang 23 (brew's default llvm) changed section-merging (llvm PR #199625) so the
+          # AArch64 SEC entry's .text.Name sections no longer coalesce, and the firmware volume
+          # it produces sends the phone straight back to fastboot. The 2026-10-28 build that DID
+          # reach the UniXNU menu used an older clang, so pin llvm@18 (18.1.8). It ships lld-link /
+          # llvm-lib / llvm-rc too, so the separate `lld` formula is not needed.
+          brew install llvm@18 mtools dtc
+          # llvm@18 is keg-only. UniXNU's tool() fallback hardcodes /opt/homebrew/opt/llvm/bin, so
+          # point that symlink at llvm@18 and also put it on PATH for any step that runs `clang`.
+          rm -f "$(brew --prefix)/opt/llvm"
+          ln -s "$(brew --prefix llvm@18)" "$(brew --prefix)/opt/llvm"
+          echo "$(brew --prefix llvm@18)/bin" >> "$GITHUB_PATH"
           if ! command -v unifdef >/dev/null; then
             brew install unifdef
             echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
