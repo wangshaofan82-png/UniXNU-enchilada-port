@@ -81,24 +81,21 @@ EDITS = [
      '  INF MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf\n'
      '  INF enchiladaPkg/Drivers/EnchiladaBootMemoryDxe/EnchiladaBootMemoryDxe.inf\n',
      '  INF enchiladaPkg/Drivers/EnchiladaBootMemoryDxe/EnchiladaBootMemoryDxe.inf\n'),
-    # clang 18 (and later) tail-merge string literals under -flto -fdata-sections, so the zero padding
-    # after an in-line CHAR8 Name[32] inside EFI_MEMORY_REGION_DESCRIPTOR is overwritten by the next
-    # string literal. That corrupts the Address/Length fields that follow Name, so the SEC stage cannot
-    # locate "Display Reserved" (framebuffer serial log) or "APSS_WDT_TMR1" (watchdog) and the phone
-    # falls back to fastboot. Disable constant merging for the firmware volume. Anchored on the
-    # FdtLib line the first edit leaves behind, so it survives re-patching in any order.
-    # NOTE: the flag belongs on CC_FLAGS only. CLANGPDB compiles with `clang -Oz -flto`, so the
-    # tail-merge happens when clang emits LTO IR (compile stage). CLANGPDB links with lld-link
-    # (MSVC-style `/OPT:ICF` flags), which rejects GCC-style `-fno-merge-all-constants`; putting it
-    # on DLINK_FLAGS made every DXE module fail to link (run 41199249725).
-    ('enchilada.dsc', '  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf\n',
-     '  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf\n\n'
-     '[BuildOptions.common]\n'
-     '  # clang 18 tail-merges string-literal tails under -flto/-fdata-sections, which overwrites the\n'
-     '  # padding inside an in-line CHAR8 Name[32] and the Address/Length fields after it. Keep each\n'
-     '  # constant intact.\n'
-     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-merge-all-constants\n',
-     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-merge-all-constants\n'),
+    # clang 18's LTO (thin/full) runs a constant/section merge pass at link time that crams
+    # neighbouring string literals into the .rdata padding after an in-line CHAR8 Name[32] inside
+    # EFI_MEMORY_REGION_DESCRIPTOR. That clobbers the Address/Length fields right after Name, so the
+    # SEC stage cannot locate "Display Reserved" (framebuffer serial log) or "APSS_WDT_TMR1"
+    # (watchdog) and the phone falls back to fastboot. -fno-merge-all-constants on the global
+    # CC_FLAGS does NOT help: under -flto clang only emits LTO bitcode and the merge happens later,
+    # inside lld-link's LTO backend, which has no such flag. The fix is to compile MemoryMapLib (the
+    # only module with that inline array) without LTO, so the constant-merge pass never runs on it.
+    ('Library/MemoryMapLib/MemoryMapLib.inf', '  SiliciumPkg/SiliciumPkg.dec\n',
+     '  SiliciumPkg/SiliciumPkg.dec\n\n'
+     '[BuildOptions]\n'
+     '  # gMemoryDescriptor holds in-line CHAR8 Name[32] arrays; clang 18 LTO tail-merges the\n'
+     '  # neighbouring string literals into their zero padding and corrupts Address/Length.\n'
+     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-lto\n',
+     '  CLANGPDB:*_*_*_CC_FLAGS = -fno-lto\n'),
 ]
 
 # SEC of SiliciumPkg, shared by every device of the checkout; the uefi-sheng fixes, unchanged for
