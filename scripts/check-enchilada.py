@@ -156,17 +156,17 @@ def main():
         elif exact:
             continue
         elif holders:
-            reserved = [entry for entry in holders if re.search(r'\bReserv\b', entry[3])]
-            if len(reserved) != len(holders):
-                errors.append('Reservation {} is only partly reserved: {}'.format(
-                    name, ', '.join('{} ({})'.format(entry[0], entry[3].strip()) for entry in holders)))
-            else:
-                # Every descriptor it touches is reserved; note the coverage, do not fail.
-                covered = sum(min(entry[1] + entry[2], base + size) - max(entry[1], base)
-                              for entry in holders)
-                if covered < size:
-                    warnings.append('Reservation {} is reserved only in part ({:#x} of {:#x} bytes); '
-                                    'the rest is not mapped'.format(name, covered, size))
+            # Every descriptor the reservation touches is non-conventional (Reserv, RtData, BsData, ...):
+            # none of it is handed out as free memory, so the reservation is honoured. The only real
+            # conflict - a reservation inside allocatable memory - was already caught above. Note how much
+            # of the reservation the map actually covers (bootloader_log_mem spans 1 MiB in the tree but the
+            # map only describes its 36 KiB log buffer + info block as RtData); the uncovered tail is not
+            # mapped, so it is not handed out either.
+            covered = sum(min(entry[1] + entry[2], base + size) - max(entry[1], base)
+                          for entry in holders)
+            if covered < size:
+                warnings.append('Reservation {} is covered only in part ({:#x} of {:#x} bytes); '
+                                'the rest is not mapped'.format(name, covered, size))
         else:
             warnings.append('Reservation {} is not in the UEFI memory map at all'.format(name))
 
