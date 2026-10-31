@@ -32,7 +32,15 @@ if _os.environ.get('ENCHILADA_BOOTSTRAP') == '1':
     print('ENCHILADA_BOOTSTRAP=1: skipping sheng platform-power instrument', flush=True)
     raise SystemExit(0)
 
-print(run(['python3', ROOT / 'scripts/audit-amfi-pmgr-contract.py'], text=True), end='')
+# The upstream audit defaults its candidate to build/xnu-prelink/, but this port stages the bootstrap candidate under
+# build/native-prelink/ (see build-enchilada-storage.py). Pass the staged candidate explicitly so the audit does not
+# fall back to an empty xnu-prelink glob and die with "No reference candidate available".
+audit_candidate = ROOT / 'build/native-prelink/native-owner-ufs-rootauth3-candidate.macho'
+if not audit_candidate.exists():
+    audit_candidate = sorted((ROOT / 'build/native-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'), key=lambda f: f.stat().st_mtime)
+    require(audit_candidate, 'No reference candidate available for amfi-pmgr audit')
+    audit_candidate = audit_candidate[-1]
+print(run(['python3', ROOT / 'scripts/audit-amfi-pmgr-contract.py', '--candidate', str(audit_candidate)], text=True), end='')
 header = '''// Generated exact storage/slot ABI; private fields stay opaque.
 #pragma once
 #include <IOKit/IOPMGR.h>
