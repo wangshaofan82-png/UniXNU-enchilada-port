@@ -119,17 +119,18 @@ jobs:
 
       - name: Install host tools
         run: |
-          # clang 23 (brew's default llvm) changed section-merging (llvm PR #199625) so the
-          # AArch64 SEC entry's .text.Name sections no longer coalesce, and the firmware volume
-          # it produces sends the phone straight back to fastboot. The 2026-10-28 build that DID
-          # reach the UniXNU menu used an older clang, so pin llvm@18 (18.1.8). It ships lld-link /
-          # llvm-lib / llvm-rc too, so the separate `lld` formula is not needed.
-          brew install llvm@18 mtools dtc
-          # llvm@18 is keg-only. UniXNU's tool() fallback hardcodes /opt/homebrew/opt/llvm/bin, so
-          # point that symlink at llvm@18 and also put it on PATH for any step that runs `clang`.
-          rm -f "$(brew --prefix)/opt/llvm"
-          ln -s "$(brew --prefix llvm@18)" "$(brew --prefix)/opt/llvm"
-          echo "$(brew --prefix llvm@18)/bin" >> "$GITHUB_PATH"
+          # Two LLVM versions are needed and must stay separate:
+          #   * `llvm` (23.x) drives the XNU kernel build: its build scripts call `llvm-objcopy`
+          #     with Mach-O options (--remove-section=__DATA,__mod_init_func), which llvm@18 rejects.
+          #   * `llvm@18` (18.1.8) drives the EDK II firmware-volume build. clang 23 changed
+          #     section-merging (llvm PR #199625) so the AArch64 SEC entry's .text.Name sections no
+          #     longer coalesce, and the firmware volume it produces sends the phone back to
+          #     fastboot. The 2026-10-28 build that DID reach the UniXNU menu used an older clang.
+          brew install llvm llvm@18 mtools dtc
+          # Expose llvm@18's prefix via GITHUB_ENV so the firmware step can point CLANG_BIN at it
+          # (firmware.py does env.setdefault('CLANG_BIN', ...), so a preset CLANG_BIN wins). Keep
+          # llvm@18 OFF the global PATH so the kernel build keeps using llvm 23's llvm-objcopy.
+          echo "LLVM18_BIN=$(brew --prefix llvm@18)/bin" >> "$GITHUB_ENV"
           if ! command -v unifdef >/dev/null; then
             brew install unifdef
             echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
@@ -331,6 +332,10 @@ jobs:
           # find the patched Mu-Silicium checkout; give it the absolute path so it does not depend on
           # the working directory it is invoked from.
           UNIXNU_UEFI: ${{ github.workspace }}/../Mu-Silicium
+          # Point EDK II's CLANGPDB at llvm@18 (clang 18) instead of the llvm 23 on PATH. clang 23
+          # no longer merges .text.Name sections, which breaks the AArch64 SEC entry and sends the
+          # phone back to fastboot. firmware.py setdefault()s CLANG_BIN, so this preset wins.
+          CLANG_BIN: ${{ env.LLVM18_BIN }}/
         run: ./unixnu build package firmware --uefi ../Mu-Silicium
 
       # Two images, because it is not known yet whether this ABL takes the payload as a 192 MiB ramdisk.
