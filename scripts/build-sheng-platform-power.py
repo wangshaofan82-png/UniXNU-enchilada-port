@@ -101,6 +101,7 @@ reference = ROOT / 'build/native-prelink/native-owner-ufs-rootauth3-candidate.ma
 if not reference.exists():
     # Build products are pruned: a later candidate built from the same original kernelcache has the identical original
     # ApplePMGR class and inherited native IOPMGR slots; every slot/pointer check below still runs against it.
+    print(f'sheng reference missing: {reference}; glob={list((ROOT / "build/native-prelink").glob("native-owner-ufs-cpu-desktop-*-candidate.macho"))}', flush=True)
     later = sorted((ROOT / 'build/native-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'), key=lambda f: f.stat().st_mtime)
     require(later, 'No reference candidate available')
     reference = later[-1]

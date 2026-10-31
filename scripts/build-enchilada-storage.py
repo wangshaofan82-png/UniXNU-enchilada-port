@@ -60,12 +60,18 @@ def main():
 
     # Stage the candidate that sheng/display read, independent of how the audit is fed.
     prelink = ROOT / 'build/native-prelink'
+    print(f'stage_candidate={stage_candidate!r} exists={Path(stage_candidate).is_file() if stage_candidate else False}', flush=True)
     if stage_candidate and Path(stage_candidate).is_file():
         prelink.mkdir(parents=True, exist_ok=True)
         for suffix in ('.macho', '.json'):
             source = Path(stage_candidate).with_suffix(suffix)
             if source.is_file():
                 shutil.copyfile(source, prelink / f'native-owner-ufs-rootauth3-candidate{suffix}')
+                print(f'staged {source} -> {prelink / f"native-owner-ufs-rootauth3-candidate{suffix}"}', flush=True)
+            else:
+                print(f'candidate sidecar missing: {source}', flush=True)
+    else:
+        print('no candidate to stage (ENCHILADA_STORAGE_CANDIDATE unset or missing)', flush=True)
 
     if original.is_file():
         staged = ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed'

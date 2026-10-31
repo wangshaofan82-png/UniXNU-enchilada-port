@@ -200,13 +200,21 @@ jobs:
         run: |
           ./unixnu defconfig enchilada_bootstrap_defconfig -D "$GITHUB_WORKSPACE/device"
           ./unixnu build kernel
+          # The full pass rebuilds out/<device> (defconfig + tree) and its own prelink will overwrite
+          # out/<device>/kernel/kernel.macho; the bootstrap candidate must survive that. Copy it to a
+          # side directory that the full build never touches, and point the candidate-gated archive
+          # builders at it.
+          mkdir -p "$GITHUB_WORKSPACE/out/bootstrap-candidate"
+          cp -f "$GITHUB_WORKSPACE/out/enchilada/kernel/kernel.macho" "$GITHUB_WORKSPACE/out/bootstrap-candidate/kernel.macho" || true
+          cp -f "$GITHUB_WORKSPACE/out/enchilada/kernel/kernel.json" "$GITHUB_WORKSPACE/out/bootstrap-candidate/kernel.json" || true
+          ls -la "$GITHUB_WORKSPACE/out/bootstrap-candidate"
 
       - name: Build kernel (full pass, uses the prelink candidate)
         id: kernel
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          ENCHILADA_STORAGE_CANDIDATE: ${{ github.workspace }}/out/enchilada/kernel/kernel.macho
-          ENCHILADA_DISPLAY_CANDIDATE: ${{ github.workspace }}/out/enchilada/kernel/kernel.macho
+          ENCHILADA_STORAGE_CANDIDATE: ${{ github.workspace }}/out/bootstrap-candidate/kernel.macho
+          ENCHILADA_DISPLAY_CANDIDATE: ${{ github.workspace }}/out/bootstrap-candidate/kernel.macho
           UNIXNU_UEFI: ${{ github.workspace }}/../Mu-Silicium
         run: |
           ./unixnu defconfig "$DEFCONFIG" -D "$GITHUB_WORKSPACE/device"
