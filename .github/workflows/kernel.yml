@@ -304,6 +304,11 @@ jobs:
         if: ${{ !inputs.skip_payload }}
         env:
           UNIXNU_UNIQUE_CHIP_ID: ${{ env.UNIXNU_UNIQUE_CHIP_ID }}
+          # scripts/patch-xnu-entry-probe.py compiles scripts/xnu-panic-screen.c and includes Font.h
+          # from $UNIXNU_UEFI/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib. Without
+          # this the script falls back to the uefi-sheng tree, which has no Font.h, and the payload
+          # step dies with "'Font.h' file not found" as soon as panic_screen is enabled.
+          UNIXNU_UEFI: ${{ github.workspace }}/../Mu-Silicium
         run: |
           args="--trust-cache out/enchilada-trust.bundle"
           if [ -n "${{ inputs.data_seed_run_id }}" ]; then
