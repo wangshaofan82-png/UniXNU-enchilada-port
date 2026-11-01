@@ -597,7 +597,14 @@ void boot_progress_bind(uintptr_t base,unsigned w,unsigned h,unsigned rb,unsigne
   if (base >= 0xffff000000000000ULL && depth == 32 && w >= 720 && w <= 4096 &&
       h >= 560 && h <= 4096 && rb >= w*4 && rb <= 65536 &&
       base <= UINTPTR_MAX-(uint64_t)h*rb) {
-    display.frame=base;display.width=w;display.height=h;display.stride=rb;display.scale=w>=2160 && h>=1400?3:1;
+    // Font scale. The panel is 1080 wide but the console is laid out at 2048x2732 logical, so the
+    // default 3x glyphs land at ~4 px after downscale and photographs cannot read them. A boot
+    // argument overrides the default: boot-progress-scale=6 (or any value 1..8) draws the same
+    // diagnostics at that many pixels per source pixel.
+    unsigned ps=0;
+    if (!PE_parse_boot_argn("boot-progress-scale",&ps,sizeof(ps)) || ps<1 || ps>8)
+      ps = (w>=2160 && h>=1400) ? 3 : 1;
+    display.frame=base;display.width=w;display.height=h;display.stride=rb;display.scale=ps;
     memset(display.previous,0xff,sizeof(display.previous));
     // Terminate the sentinels before strcmp.
     for(unsigned i=0;i<48;++i) display.previous[i][BP_COLS-1]=0;
