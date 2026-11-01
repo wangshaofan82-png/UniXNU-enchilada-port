@@ -20,6 +20,7 @@ claimed and no property is invented beyond these pinned sources.
 """
 from pathlib import Path
 import argparse
+import hashlib
 import os
 import struct
 import zlib
@@ -154,6 +155,15 @@ def main():
                         # Image4 hash algorithm. The target iPad's DT specifies sha2-384 in /chosen; this
                         # selects the algorithm only and asserts nothing about Apple silicon or fuses.
                         ('crypto-hash-method', b'sha2-384\0'),
+                        # launchd's mount -P 1 exits 66 (EX_NOINPUT) when /chosen/boot-manifest-hash is
+                        # absent (apfs: "failed to get boot-manifest-hash"). The owner boot manifest that
+                        # computes this at runtime (CONFIG_XNU_OWNER_BOOT_MANIFEST) deadlocks on SDM845: it
+                        # runs ~73 MiB of *software* SHA384 in the prelinked corecrypto kext with interrupts
+                        # masked. The sibling ports (uke/sirius, "as asteroids does") instead bake an explicit
+                        # bring-up boot-set identity here: SHA-384 of a plain domain string. mount only reads
+                        # the 48-byte value back as an identifier (it is not re-verified against the volume on
+                        # the owner path), so this unblocks mount-phase-1/2 without the deadlock.
+                        ('boot-manifest-hash', hashlib.sha384(b'EnchiladaBringup.BootSet.v1\0').digest()),
                         *( [('root-matching', ('<dict><key>IOProviderClass</key><string>IOMedia</string>'
                                                '<key>IOPropertyMatch</key><dict><key>UUID</key><string>' +
                                                args.root_match_volume_uuid.upper() + '</string></dict></dict>\0').encode())]
