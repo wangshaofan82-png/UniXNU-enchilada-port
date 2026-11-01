@@ -309,16 +309,20 @@ dram_size = "0x200000000"
 # Note on flashing: the fastboot in C:\platform-tools is a 32-bit binary and dies with
 # `std::bad_alloc` on the 8.74 GiB raw image, so userdata goes in as a sparse image instead --
 # scripts/make_sparse_image.py converts and byte-verifies it, fastboot then sends 12 chunks.
-entry_probe_reset_delay = 4
+# 2026-11-01: the bring-up moved past the menu for the first time (payload on system_b, Route 2), and
+# the kernel now stops early with the boot-progress console frozen at "an IRQ-off hard lock stops
+# refresh". Nothing readable can be taken off the panel at 2048x2732 logical (the text lands at ~4 px),
+# so this run asks the one question a photograph can answer: what does panic() say. entry_probe_reset_delay
+# is removed because stage 3 and the panic screen cannot share the padding, and a probe reset would also
+# hide a panic that fires before the probe site.
+#entry_probe_reset_delay = 4
 entry_probe_reset_after = "_vfs_mountroot"
 entry_probe_reset_in = "_bsd_init"
 entry_probe_reset_occurrence = 1
 # The panic screen and stage 3 cannot both be installed in this kernel: with stage 3 in use the probe caves
 # end at 0xfffffff0073ec620 and the panic screen (0x9ed bytes) would run 0x1d past the padding at
 # 0xfffffff0073ecff0 ("panic screen is 0x9ed bytes at 0xfffffff0073ec620, the padding ends at ...cff0").
-# One question per run: this build asks whether the CPU survives the MMU enable, and the previous --no-reset
-# run already showed there is no panic to draw. Turn this back on with entry_probe_reset_delay removed.
-panic_screen = false
+panic_screen = true
 # The static and System trust caches of 21H461, for the userland stages.
 trust_cache_sha256 = [
   "7416ca4f8377146626bb284e2133c76bee6cb4e3ee0af5d648b186235a7323a7",
